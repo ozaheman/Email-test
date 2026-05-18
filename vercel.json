@@ -2,13 +2,14 @@
   "version": 2,
   "functions": {
     "api/send.js": {
+      "runtime": "nodejs20.x",
       "maxDuration": 30,
       "memory": 256
     }
   },
   "rewrites": [
-    { "source": "/",        "destination": "/public/index.html" },
-    { "source": "/(.*)",    "destination": "/public/$1" }
+    { "source": "/",     "destination": "/public/index.html" },
+    { "source": "/(.*)", "destination": "/public/$1" }
   ],
   "headers": [
     {
