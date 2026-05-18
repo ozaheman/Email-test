@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ERP Mail — Send Email</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0d0f14;
+  --surface:  #13161e;
+  --border:   #1f2330;
+  --border2:  #2a2f40;
+  --accent:   #4f7cff;
+  --accent2:  #7c5cfc;
+  --green:    #22c55e;
+  --red:      #ef4444;
+  --yellow:   #f59e0b;
+  --text:     #e8eaf0;
+  --muted:    #6b7280;
+  --mono:     'DM Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(79,124,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,124,255,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+/* ── HEADER ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 40px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 12px;
+  display: grid; place-items: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  box-shadow: 0 0 20px rgba(79,124,255,.3);
+}
+.header-text h1 {
+  font-size: 20px; font-weight: 600; letter-spacing: -.3px;
+}
+.header-text p {
+  font-size: 13px; color: var(--muted); margin-top: 2px;
+}
+.status-dot {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-family: var(--mono);
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--yellow);
+  animation: pulse 2s infinite;
+}
+.dot.online  { background: var(--green); animation: none; }
+.dot.offline { background: var(--red);   animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── TABS ── */
+.tabs {
+  display: flex; gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 28px;
+}
+.tab {
+  flex: 1;
+  padding: 9px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+}
+.tab.active {
+  background: var(--border2);
+  color: var(--text);
+}
+.tab:hover:not(.active) { color: var(--text); }
+
+/* ── PANELS ── */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── CARD ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 11px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title span { opacity: .5; }
+
+/* ── FORM ELEMENTS ── */
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width:560px) { .row { grid-template-columns: 1fr; } }
+
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  letter-spacing: .3px;
+}
+label .req { color: var(--accent); }
+
+input, textarea, select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 10px 13px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+}
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .6; }
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,124,255,.1);
+}
+select { cursor: pointer; }
+select option { background: var(--surface); }
+
+textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
+
+/* Rich editor toggle */
+.editor-wrap { position: relative; }
+.editor-toggle {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 11px; font-family: var(--mono);
+  color: var(--accent);
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  padding: 3px 8px; border-radius: 4px;
+  transition: all .2s; z-index: 2;
+}
+.editor-toggle:hover { background: var(--border2); }
+.rich-editor {
+  width: 100%; min-height: 130px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 10px 13px;
+  outline: none;
+  transition: border-color .2s;
+  display: none;
+  line-height: 1.6;
+}
+.rich-editor:focus { border-color: var(--accent); }
+
+/* ── RECIPIENTS PILL BOX ── */
+.pill-box {
+  min-height: 44px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center;
+  cursor: text;
+  transition: border-color .2s;
+}
+.pill-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,124,255,.1);
+}
+.pill {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(79,124,255,.15);
+  border: 1px solid rgba(79,124,255,.3);
+  border-radius: 20px;
+  padding: 3px 10px 3px 10px;
+  font-size: 12px; font-family: var(--mono);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.pill .remove {
+  cursor: pointer; opacity: .6; font-size: 14px; line-height: 1;
+  margin-left: 2px;
+}
+.pill .remove:hover { opacity: 1; }
+.pill-input {
+  flex: 1; min-width: 160px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--sans);
+  outline: none; padding: 2px 4px;
+}
+
+/* ── FILE DROP ── */
+.drop-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 10px;
+  padding: 22px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .25s;
+  font-size: 13px; color: var(--muted);
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--accent);
+  background: rgba(79,124,255,.04);
+  color: var(--text);
+}
+.drop-zone .icon { font-size: 24px; margin-bottom: 6px; }
+.file-chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.file-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px; padding: 5px 10px;
+  font-size: 12px; font-family: var(--mono);
+}
+.file-chip .del { cursor: pointer; color: var(--red); }
+
+/* ── BUTTONS ── */
+.btn-row { display: flex; gap: 10px; margin-top: 6px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px;
+  border-radius: 9px; border: none;
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(79,124,255,.3);
+  flex: 1;
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(79,124,255,.4);
+}
+.btn-ghost {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--border2); }
+
+/* ── SCHEDULE TOGGLE ── */
+.schedule-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--muted); margin-bottom: 14px;
+}
+.toggle {
+  position: relative; width: 38px; height: 22px;
+  flex-shrink: 0;
+}
+.toggle input { opacity:0; width:0; height:0; }
+.slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--border2); border-radius: 22px;
+  transition: .25s;
+}
+.slider:before {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; left: 3px; bottom: 3px;
+  background: #fff; border-radius: 50%;
+  transition: .25s;
+}
+.toggle input:checked + .slider { background: var(--accent); }
+.toggle input:checked + .slider:before { transform: translateX(16px); }
+#scheduleField { display: none; margin-bottom: 14px; }
+
+/* ── TRACKING TOGGLE ── */
+.feature-row {
+  display: flex; align-items: center;
+  gap: 10px; font-size: 13px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.feature-row:last-child { border-bottom: none; }
+.feature-label { flex: 1; }
+.feature-label small { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* ── ALERT ── */
+.alert {
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-top: 16px;
+  display: none;
+  line-height: 1.5;
+  animation: fadeIn .3s ease;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+.alert.show { display: flex; gap: 10px; align-items: flex-start; }
+.alert.success { background: rgba(34,197,94,.1);  border: 1px solid rgba(34,197,94,.25); color: #86efac; }
+.alert.error   { background: rgba(239,68,68,.1);   border: 1px solid rgba(239,68,68,.25); color: #fca5a5; }
+.alert.info    { background: rgba(79,124,255,.1);  border: 1px solid rgba(79,124,255,.25); color: #93c5fd; }
+
+/* ── SPINNER ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── SMTP PRESET BADGES ── */
+.presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.preset {
+  font-size: 11px; font-family: var(--mono);
+  padding: 5px 12px; border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer; transition: all .2s;
+}
+.preset:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── RESULTS TABLE ── */
+.results-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; font-family: var(--mono);
+  margin-top: 12px;
+}
+.results-table th {
+  text-align: left; padding: 8px 10px;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+  font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+}
+.results-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+}
+.badge.ok  { background: rgba(34,197,94,.15);  color: #86efac; }
+.badge.err { background: rgba(239,68,68,.15);   color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">✉</div>
+    <div class="header-text">
+      <h1>ERP Mail System</h1>
+      <p>SMTP email client — hosted on Vercel</p>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="sdot"></div>
+      <span id="slabel">checking…</span>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('compose')">✉ Compose</button>
+    <button class="tab" onclick="switchTab('smtp')">⚙ SMTP Config</button>
+    <button class="tab" onclick="switchTab('results')">📊 Results</button>
+  </div>
+
+  <!-- ══════════════════ COMPOSE PANEL ══════════════════ -->
+  <div id="tab-compose" class="panel active">
+
+    <div class="card">
+      <div class="card-title">Recipients <span>— press Enter or comma to add multiple</span></div>
+      <div class="field">
+        <label>To <span class="req">*</span></label>
+        <div class="pill-box" id="pillBox" onclick="document.getElementById('pillInput').focus()">
+          <input id="pillInput" class="pill-input" placeholder="email@example.com"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>CC <span style="opacity:.5;font-weight:400">(optional)</span></label>
+        <input type="email" id="ccEmail" placeholder="cc@example.com"/>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Message</div>
+      <div class="field">
+        <label>Subject <span class="req">*</span></label>
+        <input type="text" id="subject" placeholder="Enter subject line…"/>
+      </div>
+      <div class="field">
+        <label>Body <span class="req">*</span></label>
+        <div class="editor-wrap">
+          <span class="editor-toggle" id="editorToggle" onclick="toggleEditor()">HTML</span>
+          <textarea id="msgPlain" placeholder="Type your message…"></textarea>
+          <div class="rich-editor" id="msgHtml" contenteditable="true"
+               placeholder="Type HTML content…"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Attachments</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">📎</div>
+        Click or drop files here
+        <br/><small>Max 5 MB per file</small>
+      </div>
+      <input type="file" id="fileInput" multiple style="display:none"/>
+      <div class="file-chips" id="fileChips"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Options</div>
+
+      <div class="feature-row">
+        <div class="feature-label">
+          Schedule Send
+          <small>Send at a specific date & time</small>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="schedToggle" onchange="document.getElementById('scheduleField').style.display=this.checked?'block':'none'"/>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="scheduleField">
+        <input type="datetime-local" id="schedTime" style="margin-top:6px"/>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-label">
+          Open Tracking
+          <small>Embed 1×1 tracking pixel</small>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="trackToggle"/>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="clearForm()">Clear</button>
+      <button class="btn btn-primary" id="sendBtn" onclick="sendEmail()">
+        <span>Send Email</span>
+      </button>
+    </div>
+
+    <div class="alert" id="composeAlert"></div>
+  </div>
+
+  <!-- ══════════════════ SMTP PANEL ══════════════════ -->
+  <div id="tab-smtp" class="panel">
+    <div class="card">
+      <div class="card-title">Quick Presets</div>
+      <div class="presets">
+        <span class="preset" onclick="applyPreset('gmail')">Gmail</span>
+        <span class="preset" onclick="applyPreset('outlook')">Outlook / Hotmail</span>
+        <span class="preset" onclick="applyPreset('yahoo')">Yahoo</span>
+        <span class="preset" onclick="applyPreset('zoho')">Zoho Mail</span>
+        <span class="preset" onclick="applyPreset('office365')">Office 365</span>
+        <span class="preset" onclick="applyPreset('sendgrid')">SendGrid</span>
+        <span class="preset" onclick="applyPreset('ses')">AWS SES</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Server Settings</div>
+      <div class="row">
+        <div class="field">
+          <label>SMTP Server <span class="req">*</span></label>
+          <input type="text" id="smtpServer" placeholder="smtp.gmail.com"/>
+        </div>
+        <div class="field">
+          <label>Port <span class="req">*</span></label>
+          <input type="text" id="smtpPort" placeholder="587"/>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Username / Email <span class="req">*</span></label>
+          <input type="email" id="smtpUser" placeholder="you@gmail.com"/>
+        </div>
+        <div class="field">
+          <label>Password / App Key <span class="req">*</span></label>
+          <input type="password" id="smtpPass" placeholder="••••••••"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Security</label>
+        <select id="smtpSec">
+          <option value="TLS">STARTTLS — Port 587 (recommended)</option>
+          <option value="SSL">SSL/TLS — Port 465</option>
+          <option value="None">None — Port 25</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="testBtn" onclick="testSmtp()">Test Connection</button>
+      <button class="btn btn-primary" onclick="saveSmtp()">Save Config</button>
+    </div>
+    <div class="alert" id="smtpAlert"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Gmail App Password Guide</div>
+      <p style="font-size:13px;color:var(--muted);line-height:1.7">
+        Gmail blocks regular passwords. You need an <strong style="color:var(--text)">App Password</strong>:<br/>
+        1. Enable 2-Step Verification on your Google Account<br/>
+        2. Go to <em>myaccount.google.com → Security → App Passwords</em><br/>
+        3. Generate a password for "Mail" → paste it above<br/>
+        4. Use <strong style="color:var(--text)">smtp.gmail.com</strong>, port <strong style="color:var(--text)">587</strong>
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════════════ RESULTS PANEL ══════════════════ -->
+  <div id="tab-results" class="panel">
+    <div class="card">
+      <div class="card-title">Send History <span id="histCount"></span></div>
+      <div id="histEmpty" style="font-size:13px;color:var(--muted);padding:10px 0">
+        No emails sent yet this session.
+      </div>
+      <table class="results-table" id="histTable" style="display:none">
+        <thead>
+          <tr>
+            <th>To</th>
+            <th>Subject</th>
+            <th>Status</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const recipients = [];
+const attachedFiles = [];
+let isHtmlMode = false;
+const history = [];
+
+// Detect API base — same origin on Vercel, localhost fallback for dev
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:3000'
+  : '';
+
+// ─── HEALTH CHECK ────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API_BASE}/api/send?action=health`, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      document.getElementById('sdot').className = 'dot online';
+      document.getElementById('slabel').textContent = 'backend online';
+    } else throw new Error();
+  } catch {
+    document.getElementById('sdot').className = 'dot offline';
+    document.getElementById('slabel').textContent = 'backend offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['compose','smtp','results'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ─── PILL INPUT ──────────────────────────────────────────────────────────────
+const pillInput = document.getElementById('pillInput');
+pillInput.addEventListener('keydown', e => {
+  if ([',','Enter',' '].includes(e.key)) {
+    e.preventDefault();
+    addRecipient(pillInput.value.trim());
+  }
+  if (e.key === 'Backspace' && !pillInput.value && recipients.length) {
+    removeRecipient(recipients.length - 1);
+  }
+});
+pillInput.addEventListener('blur', () => {
+  if (pillInput.value.trim()) addRecipient(pillInput.value.trim());
+});
+
+function addRecipient(email) {
+  if (!email || !/\S+@\S+\.\S+/.test(email)) return;
+  if (recipients.includes(email)) { pillInput.value = ''; return; }
+  recipients.push(email);
+  renderPills();
+  pillInput.value = '';
+}
+function removeRecipient(i) {
+  recipients.splice(i, 1);
+  renderPills();
+}
+function renderPills() {
+  const box = document.getElementById('pillBox');
+  box.querySelectorAll('.pill').forEach(p => p.remove());
+  recipients.forEach((r, i) => {
+    const pill = document.createElement('div');
+    pill.className = 'pill';
+    pill.innerHTML = `${r}<span class="remove" onclick="removeRecipient(${i})">×</span>`;
+    box.insertBefore(pill, pillInput);
+  });
+}
+
+// ─── EDITOR TOGGLE ───────────────────────────────────────────────────────────
+function toggleEditor() {
+  isHtmlMode = !isHtmlMode;
+  const plain = document.getElementById('msgPlain');
+  const html  = document.getElementById('msgHtml');
+  const btn   = document.getElementById('editorToggle');
+  if (isHtmlMode) {
+    html.innerHTML = plain.value;
+    plain.style.display = 'none';
+    html.style.display  = 'block';
+    btn.textContent = 'Plain';
+  } else {
+    plain.value = html.innerText;
+    html.style.display  = 'none';
+    plain.style.display = 'block';
+    btn.textContent = 'HTML';
+  }
+}
+
+// ─── FILE DROP ───────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(fileList) {
+  for (const f of fileList) {
+    if (f.size > 5 * 1024 * 1024) { alert(`${f.name} exceeds 5 MB limit`); continue; }
+    if (attachedFiles.find(a => a.name === f.name)) continue;
+    attachedFiles.push(f);
+  }
+  renderChips();
+}
+function renderChips() {
+  const box = document.getElementById('fileChips');
+  box.innerHTML = '';
+  attachedFiles.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.innerHTML = `📄 ${f.name} <span style="color:var(--muted)">(${(f.size/1024).toFixed(0)}KB)</span>
+                      <span class="del" onclick="removeFile(${i})">✕</span>`;
+    box.appendChild(chip);
+  });
+}
+function removeFile(i) { attachedFiles.splice(i, 1); renderChips(); }
+
+// ─── SMTP PRESETS ────────────────────────────────────────────────────────────
+const PRESETS = {
+  gmail:     { server: 'smtp.gmail.com',           port: '587', sec: 'TLS' },
+  outlook:   { server: 'smtp-mail.outlook.com',    port: '587', sec: 'TLS' },
+  yahoo:     { server: 'smtp.mail.yahoo.com',       port: '587', sec: 'TLS' },
+  zoho:      { server: 'smtp.zoho.com',             port: '587', sec: 'TLS' },
+  office365: { server: 'smtp.office365.com',        port: '587', sec: 'TLS' },
+  sendgrid:  { server: 'smtp.sendgrid.net',         port: '587', sec: 'TLS' },
+  ses:       { server: 'email-smtp.us-east-1.amazonaws.com', port: '587', sec: 'TLS' },
+};
+function applyPreset(key) {
+  const p = PRESETS[key];
+  document.getElementById('smtpServer').value = p.server;
+  document.getElementById('smtpPort').value   = p.port;
+  document.getElementById('smtpSec').value    = p.sec;
+  showAlert('smtpAlert', 'info', `${key.charAt(0).toUpperCase()+key.slice(1)} preset applied — add your credentials below.`);
+}
+
+// ─── SAVE / LOAD SMTP ────────────────────────────────────────────────────────
+function saveSmtp() {
+  const cfg = getSmtpConfig();
+  if (!cfg.server || !cfg.user || !cfg.pass)
+    return showAlert('smtpAlert', 'error', 'Please fill in server, username and password.');
+  localStorage.setItem('smtp_cfg', JSON.stringify(cfg));
+  showAlert('smtpAlert', 'success', '✅ SMTP config saved to browser storage.');
+}
+function loadSmtp() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('smtp_cfg') || '{}');
+    if (cfg.server) document.getElementById('smtpServer').value = cfg.server;
+    if (cfg.port)   document.getElementById('smtpPort').value   = cfg.port;
+    if (cfg.user)   document.getElementById('smtpUser').value   = cfg.user;
+    if (cfg.pass)   document.getElementById('smtpPass').value   = cfg.pass;
+    if (cfg.sec)    document.getElementById('smtpSec').value    = cfg.sec;
+  } catch {}
+}
+function getSmtpConfig() {
+  return {
+    server: document.getElementById('smtpServer').value.trim(),
+    port:   document.getElementById('smtpPort').value.trim() || '587',
+    user:   document.getElementById('smtpUser').value.trim(),
+    pass:   document.getElementById('smtpPass').value,
+    sec:    document.getElementById('smtpSec').value,
+  };
+}
+loadSmtp();
+
+// ─── TEST SMTP ───────────────────────────────────────────────────────────────
+async function testSmtp() {
+  const cfg = getSmtpConfig();
+  if (!cfg.server || !cfg.user || !cfg.pass)
+    return showAlert('smtpAlert', 'error', 'Fill in server, username and password first.');
+
+  const btn = document.getElementById('testBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Testing…';
+  clearAlert('smtpAlert');
+
+  try {
+    const fd = new FormData();
+    fd.append('smtpConfig', JSON.stringify(cfg));
+    const r = await fetch(`${API_BASE}/api/send?action=validate`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) showAlert('smtpAlert', 'success', '✅ ' + d.message);
+    else           showAlert('smtpAlert', 'error',   '❌ ' + d.message);
+  } catch (e) {
+    showAlert('smtpAlert', 'error', 'Network error — is the backend running? ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Test Connection';
+  }
+}
+
+// ─── SEND EMAIL ──────────────────────────────────────────────────────────────
+async function sendEmail() {
+  const smtp = getSmtpConfig();
+  if (!smtp.server || !smtp.user || !smtp.pass) {
+    showAlert('composeAlert', 'error', 'Configure SMTP first — go to the ⚙ SMTP Config tab.');
+    return;
+  }
+  if (!recipients.length) {
+    // check pill input too
+    const v = pillInput.value.trim();
+    if (v) addRecipient(v);
+    if (!recipients.length) {
+      showAlert('composeAlert', 'error', 'Add at least one recipient.');
+      return;
+    }
+  }
+  const subject = document.getElementById('subject').value.trim();
+  if (!subject) return showAlert('composeAlert', 'error', 'Subject is required.');
+  const message = isHtmlMode
+    ? document.getElementById('msgHtml').innerHTML
+    : document.getElementById('msgPlain').value;
+  if (!message.trim()) return showAlert('composeAlert', 'error', 'Message body is required.');
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Sending…';
+  clearAlert('composeAlert');
+
+  try {
+    const fd = new FormData();
+    fd.append('smtpConfig', JSON.stringify(smtp));
+    fd.append('to',      recipients.join(','));
+    fd.append('subject', subject);
+    fd.append('message', message);
+    if (document.getElementById('trackToggle').checked)  fd.append('enableTracking', 'true');
+    if (document.getElementById('schedToggle').checked) {
+      const t = document.getElementById('schedTime').value;
+      if (!t) { showAlert('composeAlert','error','Set a schedule time.'); btn.disabled=false; btn.innerHTML='<span>Send Email</span>'; return; }
+      fd.append('scheduleTime', new Date(t).toISOString());
+    }
+    for (const f of attachedFiles) fd.append('files', f, f.name);
+
+    const r = await fetch(`${API_BASE}/api/send`, { method: 'POST', body: fd });
+    const d = await r.json();
+
+    if (d.success) {
+      showAlert('composeAlert', 'success', `✅ ${d.message}`);
+      addHistory(recipients.slice(), subject, d.results || []);
+    } else {
+      showAlert('composeAlert', 'error', '❌ ' + d.message);
+    }
+  } catch (e) {
+    showAlert('composeAlert', 'error', 'Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>Send Email</span>';
+  }
+}
+
+// ─── HISTORY ────────────────────────────────────────────────────────────────
+function addHistory(tos, subject, results) {
+  const ts = new Date().toLocaleTimeString();
+  for (const r of results) {
+    history.unshift({ to: r.to, subject, ok: r.success, error: r.error, ts });
+  }
+  renderHistory();
+}
+function renderHistory() {
+  const empty = document.getElementById('histEmpty');
+  const table = document.getElementById('histTable');
+  const body  = document.getElementById('histBody');
+  const count = document.getElementById('histCount');
+  if (!history.length) { empty.style.display=''; table.style.display='none'; count.textContent=''; return; }
+  empty.style.display = 'none';
+  table.style.display = '';
+  count.textContent   = `— ${history.length} record(s)`;
+  body.innerHTML = history.map(h => `
+    <tr>
+      <td style="font-family:var(--mono)">${h.to}</td>
+      <td>${h.subject}</td>
+      <td><span class="badge ${h.ok?'ok':'err'}">${h.ok?'sent':'failed'}</span>${h.error?`<small style="color:var(--red);margin-left:6px">${h.error}</small>`:''}</td>
+      <td style="color:var(--muted)">${h.ts}</td>
+    </tr>`).join('');
+}
+
+// ─── UTILS ──────────────────────────────────────────────────────────────────
+function clearForm() {
+  recipients.length = 0; renderPills();
+  attachedFiles.length = 0; renderChips();
+  document.getElementById('subject').value = '';
+  document.getElementById('msgPlain').value = '';
+  document.getElementById('msgHtml').innerHTML = '';
+  document.getElementById('ccEmail').value = '';
+  clearAlert('composeAlert');
+}
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = `alert ${type} show`;
+  el.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ'}</span><span>${msg}</span>`;
+}
+function clearAlert(id) {
+  const el = document.getElementById(id);
+  el.className = 'alert'; el.innerHTML = '';
+}
+</script>
+</body>
+</html>

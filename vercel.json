@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "functions": {
+    "api/send.js": {
+      "maxDuration": 30,
+      "memory": 256
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/send(.*)",
+      "dest": "/api/send.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin",  "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+      ]
+    }
+  ]
+}
