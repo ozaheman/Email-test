@@ -6,15 +6,9 @@
       "memory": 256
     }
   },
-  "routes": [
-    {
-      "src": "/api/send(.*)",
-      "dest": "/api/send.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
+  "rewrites": [
+    { "source": "/",        "destination": "/public/index.html" },
+    { "source": "/(.*)",    "destination": "/public/$1" }
   ],
   "headers": [
     {

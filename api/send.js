@@ -53,9 +53,10 @@ class SmtpClient {
         const { server, user, pass } = this.cfg;
         await this._expect(220, 'greeting');
 
+        const hostname = (() => { try { return os.hostname(); } catch { return 'mail.client'; } })();
         let caps = '';
-        try { caps = await this._cmd(`EHLO ${os.hostname()}`, 250); }
-        catch { await this._cmd(`HELO ${os.hostname()}`, 250); }
+        try { caps = await this._cmd(`EHLO ${hostname}`, 250); }
+        catch { await this._cmd(`HELO ${hostname}`, 250); }
 
         if (!isSsl && /STARTTLS/i.test(caps)) {
             await this._cmd('STARTTLS', 220);
@@ -71,7 +72,7 @@ class SmtpClient {
                 });
                 upgraded.on('error', rej);
             });
-            await this._cmd(`EHLO ${os.hostname()}`, 250);
+            await this._cmd(`EHLO ${hostname}`, 250);
         }
 
         await this._cmd('AUTH LOGIN', 334);
@@ -283,8 +284,9 @@ module.exports = async function handler(req, res) {
         res.end(JSON.stringify(data));
     };
 
-    // ── GET /api/send?action=health ─────────────────────────────────────────
-    const action = (req.query || {}).action || '';
+    // ── Parse query string manually (req.query undefined in Vercel raw handlers) ──
+    const urlObj = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
+    const action = urlObj.searchParams.get('action') || '';
 
     if (req.method === 'GET' && action === 'health') {
         return reply(200, { status: 'OK', timestamp: new Date().toISOString() });
