@@ -16,12 +16,11 @@
 
 'use strict';
 
-const http    = require('http');
-const { once } = require('events');
+import { Readable } from 'stream';
+import handler from './api/send.js';
 
 // ── Minimal mock req/res ──────────────────────────────────────────────────────
 function mockReq(method, url, headers, bodyStr) {
-  const { Readable } = require('stream');
   const r = Readable.from([bodyStr ?? '']);
   r.method  = method;
   r.url     = url;
@@ -57,9 +56,6 @@ async function run(label, fn) {
   try { await fn(); }
   catch (e) { console.error('  💥  Threw:', e.message); failed++; }
 }
-
-// ── Load handler ─────────────────────────────────────────────────────────────
-const handler = require('./api/send.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 (async () => {

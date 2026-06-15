@@ -5,9 +5,9 @@
 
 'use strict';
 
-const net    = require('net');
-const tls    = require('tls');
-const crypto = require('crypto');
+import net from 'net';
+import tls from 'tls';
+import crypto from 'crypto';
 
 // ─── CORS HEADERS ────────────────────────────────────────────────────────────
 const CORS = {
@@ -204,7 +204,11 @@ class SmtpClient {
       );
     }
 
-    const body = lines.join('\r\n') + '\r\n.';
+    let body = lines.join('\r\n');
+    // RFC 5321 dot-stuffing: lines starting with '.' must be escaped as '..'
+    body = body.replace(/\r\n\./g, '\r\n..');
+    if (body.startsWith('.')) body = '.' + body;
+    body += '\r\n.\r\n';
     await this._sendRaw(body);
     await this._expect([250], 'DATA accepted');
   }
@@ -343,7 +347,7 @@ function qpEncode(str) {
 async function readBody(req) {
   return new Promise((res, rej) => {
     const chunks = [];
-    req.on('data', c => chunks.push(c));
+    req.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
     req.on('end',  () => res(Buffer.concat(chunks)));
     req.on('error', rej);
   });
@@ -412,8 +416,9 @@ function parseMultipart(raw, boundary) {
 }
 
 async function parseBody(req) {
-  const raw = await readBody(req);
-  const ct  = (req.headers['content-type'] || '').toLowerCase();
+  const raw    = await readBody(req);
+  const ctOrig = req.headers['content-type'] || '';
+  const ct     = ctOrig.toLowerCase();
 
   if (ct.includes('application/json')) {
     try {
@@ -424,7 +429,7 @@ async function parseBody(req) {
   }
   
   if (ct.includes('multipart/form-data')) {
-    const bm = ct.match(/boundary=([^\s;]+)/);
+    const bm = ctOrig.match(/boundary=([^\s;]+)/i);
     if (!bm) throw new Error('Multipart missing boundary');
     const boundary = bm[1].replace(/^"|"$/g, '');
     return parseMultipart(raw, boundary);
@@ -596,6 +601,4 @@ ${messageBody.replace(/\n/g, '<br/>')}
     timestamp: new Date().toISOString(),
   });
 };
-// Support both CommonJS and ES modules
 export default handler;
-module.exports = handler;
