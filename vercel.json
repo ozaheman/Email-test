@@ -7,9 +7,10 @@
       "memory": 256
     }
   },
-  "rewrites": [
-    { "source": "/",     "destination": "/public/index.html" },
-    { "source": "/(.*)", "destination": "/public/$1" }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/",         "dest": "/public/index.html" },
+    { "src": "/(.*)",     "dest": "/public/$1" }
   ],
   "headers": [
     {
