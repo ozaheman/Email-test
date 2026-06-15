@@ -59,7 +59,7 @@ textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
 .editor-wrap { position: relative; }
 .editor-toggle { position: absolute; top: 8px; right: 8px; font-size: 11px; font-family: var(--mono); color: var(--accent); cursor: pointer; background: var(--surface); border: 1px solid var(--border2); padding: 3px 8px; border-radius: 4px; transition: all .2s; z-index: 2; }
 .editor-toggle:hover { background: var(--border2); }
-.rich-editor { width: 100%; min-height: 130px; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 14px; padding: 10px 13px; outline: none; transition: border-color .2s; display: none; line-height: 1.6; }
+.rich-editor { width: 100%; min-height: 130px; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 14px; padding: 10px 13px; outline: none; transition: border-color .2s; display: none; line-height: 1.6; overflow-y: auto; }
 .rich-editor:focus { border-color: var(--accent); }
 .pill-box { min-height: 44px; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; cursor: text; transition: border-color .2s; }
 .pill-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,124,255,.1); }
@@ -108,6 +108,9 @@ textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
 .badge.ok  { background: rgba(34,197,94,.15);  color: #86efac; }
 .badge.err { background: rgba(239,68,68,.15);   color: #fca5a5; }
+.debug-info { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 16px; font-size: 11px; font-family: var(--mono); color: var(--muted); display: none; }
+.debug-info.show { display: block; }
+.debug-info pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
 </style>
 </head>
 <body>
@@ -155,7 +158,7 @@ textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
         <div class="editor-wrap">
           <span class="editor-toggle" id="editorToggle" onclick="toggleEditor()">HTML</span>
           <textarea id="msgPlain" placeholder="Type your message…"></textarea>
-          <div class="rich-editor" id="msgHtml" contenteditable="true" placeholder="Type HTML content…"></div>
+          <div class="rich-editor" id="msgHtml" contenteditable="true"></div>
         </div>
       </div>
     </div>
@@ -237,6 +240,10 @@ textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
         4. Use <strong style="color:var(--text)">smtp.gmail.com</strong>, port <strong style="color:var(--text)">587</strong>
       </p>
     </div>
+    <div class="debug-info" id="debugInfo">
+      <strong>Debug Info:</strong>
+      <pre id="debugContent"></pre>
+    </div>
   </div>
 
   <div id="tab-results" class="panel">
@@ -253,28 +260,59 @@ textarea { resize: vertical; min-height: 130px; line-height: 1.6; }
 
 <script>
 const recipients = [];
-const attachedFiles = [];
+let attachedFiles = [];
 let isHtmlMode = false;
 const history = [];
-const API_BASE = '';
+let API_BASE = '';
+
+// Detect API base URL
+function getApiBase() {
+  // Use relative path for same-origin requests
+  return '';
+}
 
 async function checkHealth() {
+  const statusDot = document.getElementById('sdot');
+  const statusLabel = document.getElementById('slabel');
+  
   try {
-    const r = await fetch(`${API_BASE}/api/send?action=health`, { signal: AbortSignal.timeout(5000) });
-    if (r.ok) {
-      document.getElementById('sdot').className = 'dot online';
-      document.getElementById('slabel').textContent = 'backend online';
+    const response = await fetch(`/api/send?action=health`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'OK') {
+        statusDot.className = 'dot online';
+        statusLabel.textContent = 'backend online ✓';
+      } else {
+        throw new Error('Invalid response');
+      }
     } else {
-      document.getElementById('sdot').className = 'dot offline';
-      document.getElementById('slabel').textContent = `HTTP ${r.status}`;
+      throw new Error(`HTTP ${response.status}`);
     }
   } catch(e) {
-    document.getElementById('sdot').className = 'dot offline';
-    document.getElementById('slabel').textContent = 'backend offline';
+    console.error('Health check failed:', e);
+    statusDot.className = 'dot offline';
+    statusLabel.textContent = 'backend offline ✗';
+    
+    // Show debug info
+    showDebugInfo(`Health check failed: ${e.message}\n\nMake sure the API endpoint is deployed correctly.`);
   }
 }
-checkHealth();
-setInterval(checkHealth, 15000);
+
+function showDebugInfo(message) {
+  const debugDiv = document.getElementById('debugInfo');
+  const debugContent = document.getElementById('debugContent');
+  debugContent.textContent = message;
+  debugDiv.classList.add('show');
+  
+  // Auto-hide after 30 seconds
+  setTimeout(() => {
+    debugDiv.classList.remove('show');
+  }, 30000);
+}
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t,i) => {
@@ -287,20 +325,36 @@ function switchTab(name) {
 
 const pillInput = document.getElementById('pillInput');
 pillInput.addEventListener('keydown', e => {
-  if ([',','Enter',' '].includes(e.key)) { e.preventDefault(); addRecipient(pillInput.value.trim()); }
-  if (e.key === 'Backspace' && !pillInput.value && recipients.length) removeRecipient(recipients.length - 1);
+  if ([',','Enter',' '].includes(e.key)) { 
+    e.preventDefault(); 
+    addRecipient(pillInput.value.trim()); 
+  }
+  if (e.key === 'Backspace' && !pillInput.value && recipients.length) {
+    removeRecipient(recipients.length - 1);
+  }
 });
-pillInput.addEventListener('blur', () => { if (pillInput.value.trim()) addRecipient(pillInput.value.trim()); });
+pillInput.addEventListener('blur', () => { 
+  if (pillInput.value.trim()) addRecipient(pillInput.value.trim()); 
+});
 
 function addRecipient(email) {
   if (!email || !/\S+@\S+\.\S+/.test(email)) return;
   if (recipients.includes(email)) { pillInput.value = ''; return; }
-  recipients.push(email); renderPills(); pillInput.value = '';
+  recipients.push(email); 
+  renderPills(); 
+  pillInput.value = '';
 }
-function removeRecipient(i) { recipients.splice(i, 1); renderPills(); }
+
+function removeRecipient(i) { 
+  recipients.splice(i, 1); 
+  renderPills(); 
+}
+
 function renderPills() {
   const box = document.getElementById('pillBox');
-  box.querySelectorAll('.pill').forEach(p => p.remove());
+  const pills = box.querySelectorAll('.pill');
+  pills.forEach(p => p.remove());
+  
   recipients.forEach((r, i) => {
     const pill = document.createElement('div');
     pill.className = 'pill';
@@ -314,26 +368,53 @@ function toggleEditor() {
   const plain = document.getElementById('msgPlain');
   const html  = document.getElementById('msgHtml');
   const btn   = document.getElementById('editorToggle');
-  if (isHtmlMode) { html.innerHTML = plain.value; plain.style.display = 'none'; html.style.display = 'block'; btn.textContent = 'Plain'; }
-  else { plain.value = html.innerText; html.style.display = 'none'; plain.style.display = 'block'; btn.textContent = 'HTML'; }
+  
+  if (isHtmlMode) {
+    // Convert plain text to HTML (preserve line breaks)
+    const plainText = plain.value;
+    html.innerHTML = plainText.replace(/\n/g, '<br>');
+    plain.style.display = 'none';
+    html.style.display = 'block';
+    btn.textContent = 'Plain';
+  } else {
+    // Convert HTML to plain text
+    const htmlContent = html.innerHTML;
+    plain.value = htmlContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+    html.style.display = 'none';
+    plain.style.display = 'block';
+    btn.textContent = 'HTML';
+  }
 }
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
+
 dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragover', e => { 
+  e.preventDefault(); 
+  dropZone.classList.add('over'); 
+});
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); handleFiles(e.dataTransfer.files); });
+dropZone.addEventListener('drop', e => { 
+  e.preventDefault(); 
+  dropZone.classList.remove('over'); 
+  handleFiles(e.dataTransfer.files); 
+});
 fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
 function handleFiles(fileList) {
   for (const f of fileList) {
-    if (f.size > 5 * 1024 * 1024) { alert(`${f.name} exceeds 5 MB limit`); continue; }
+    if (f.size > 5 * 1024 * 1024) { 
+      showAlert('composeAlert', 'error', `${f.name} exceeds 5 MB limit`);
+      continue; 
+    }
     if (attachedFiles.find(a => a.name === f.name)) continue;
     attachedFiles.push(f);
   }
   renderChips();
+  fileInput.value = ''; // Reset file input
 }
+
 function renderChips() {
   const box = document.getElementById('fileChips');
   box.innerHTML = '';
@@ -344,7 +425,11 @@ function renderChips() {
     box.appendChild(chip);
   });
 }
-function removeFile(i) { attachedFiles.splice(i, 1); renderChips(); }
+
+function removeFile(i) { 
+  attachedFiles.splice(i, 1); 
+  renderChips(); 
+}
 
 const PRESETS = {
   gmail:     { server: 'smtp.gmail.com',           port: '587', sec: 'TLS' },
@@ -355,6 +440,7 @@ const PRESETS = {
   sendgrid:  { server: 'smtp.sendgrid.net',         port: '587', sec: 'TLS' },
   ses:       { server: 'email-smtp.us-east-1.amazonaws.com', port: '587', sec: 'TLS' },
 };
+
 function applyPreset(key) {
   const p = PRESETS[key];
   document.getElementById('smtpServer').value = p.server;
@@ -365,10 +451,13 @@ function applyPreset(key) {
 
 function saveSmtp() {
   const cfg = getSmtpConfig();
-  if (!cfg.server || !cfg.user || !cfg.pass) return showAlert('smtpAlert', 'error', 'Please fill in server, username and password.');
+  if (!cfg.server || !cfg.user || !cfg.pass) {
+    return showAlert('smtpAlert', 'error', 'Please fill in server, username and password.');
+  }
   localStorage.setItem('smtp_cfg', JSON.stringify(cfg));
   showAlert('smtpAlert', 'success', '✅ SMTP config saved to browser storage.');
 }
+
 function loadSmtp() {
   try {
     const cfg = JSON.parse(localStorage.getItem('smtp_cfg') || '{}');
@@ -377,113 +466,260 @@ function loadSmtp() {
     if (cfg.user)   document.getElementById('smtpUser').value   = cfg.user;
     if (cfg.pass)   document.getElementById('smtpPass').value   = cfg.pass;
     if (cfg.sec)    document.getElementById('smtpSec').value    = cfg.sec;
-  } catch {}
+  } catch(e) {
+    console.error('Failed to load SMTP config:', e);
+  }
 }
+
 function getSmtpConfig() {
+  const sec = document.getElementById('smtpSec').value;
+  let port = document.getElementById('smtpPort').value.trim();
+  
+  // Auto-set port based on security if not specified
+  if (!port) {
+    port = sec === 'SSL' ? '465' : '587';
+  }
+  
   return {
     server: document.getElementById('smtpServer').value.trim(),
-    port:   document.getElementById('smtpPort').value.trim() || '587',
-    user:   document.getElementById('smtpUser').value.trim(),
-    pass:   document.getElementById('smtpPass').value,
-    sec:    document.getElementById('smtpSec').value,
+    port: port,
+    user: document.getElementById('smtpUser').value.trim(),
+    pass: document.getElementById('smtpPass').value,
+    sec: sec,
   };
 }
-loadSmtp();
 
-async function safeJson(r) {
-  const text = await r.text();
-  try { return JSON.parse(text); }
-  catch { throw new Error(`Server returned HTTP ${r.status} — not JSON. Response: ${text.slice(0, 200)}`); }
-}
+loadSmtp();
 
 async function testSmtp() {
   const cfg = getSmtpConfig();
-  if (!cfg.server || !cfg.user || !cfg.pass) return showAlert('smtpAlert', 'error', 'Fill in server, username and password first.');
+  if (!cfg.server || !cfg.user || !cfg.pass) {
+    return showAlert('smtpAlert', 'error', 'Fill in server, username and password first.');
+  }
+  
   const btn = document.getElementById('testBtn');
-  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Testing…'; clearAlert('smtpAlert');
+  btn.disabled = true; 
+  btn.innerHTML = '<div class="spinner"></div> Testing…';
+  clearAlert('smtpAlert');
+  
   try {
-    const fd = new FormData();
-    fd.append('smtpConfig', JSON.stringify(cfg));
-    const r = await fetch(`${API_BASE}/api/send?action=validate`, { method: 'POST', body: fd });
-    const d = await safeJson(r);
-    if (d.success) showAlert('smtpAlert', 'success', '✅ ' + d.message);
-    else           showAlert('smtpAlert', 'error',   '❌ ' + d.message);
+    const formData = new FormData();
+    formData.append('smtpConfig', JSON.stringify(cfg));
+    
+    const response = await fetch(`/api/send?action=validate`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    let data;
+    const responseText = await response.text();
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch(e) {
+      console.error('Failed to parse response:', responseText);
+      throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 200)}`);
+    }
+    
+    if (data.success) {
+      showAlert('smtpAlert', 'success', '✅ ' + data.message);
+    } else {
+      showAlert('smtpAlert', 'error', '❌ ' + data.message);
+    }
   } catch (e) {
-    showAlert('smtpAlert', 'error', '❌ ' + e.message);
+    console.error('Test connection error:', e);
+    showAlert('smtpAlert', 'error', '❌ Connection failed: ' + e.message);
+    showDebugInfo(`Test connection error:\n${e.stack || e.message}\n\nCheck that the API endpoint is deployed correctly.`);
   } finally {
-    btn.disabled = false; btn.innerHTML = 'Test Connection';
+    btn.disabled = false; 
+    btn.innerHTML = 'Test Connection';
   }
 }
 
 async function sendEmail() {
   const smtp = getSmtpConfig();
-  if (!smtp.server || !smtp.user || !smtp.pass) { showAlert('composeAlert', 'error', 'Configure SMTP first — go to the ⚙ SMTP Config tab.'); return; }
+  if (!smtp.server || !smtp.user || !smtp.pass) { 
+    showAlert('composeAlert', 'error', 'Configure SMTP first — go to the ⚙ SMTP Config tab.'); 
+    return; 
+  }
+  
   if (!recipients.length) {
     const v = pillInput.value.trim();
     if (v) addRecipient(v);
-    if (!recipients.length) { showAlert('composeAlert', 'error', 'Add at least one recipient.'); return; }
+    if (!recipients.length) { 
+      showAlert('composeAlert', 'error', 'Add at least one recipient.'); 
+      return; 
+    }
   }
+  
   const subject = document.getElementById('subject').value.trim();
-  if (!subject) return showAlert('composeAlert', 'error', 'Subject is required.');
-  const message = isHtmlMode ? document.getElementById('msgHtml').innerHTML : document.getElementById('msgPlain').value;
-  if (!message.trim()) return showAlert('composeAlert', 'error', 'Message body is required.');
+  if (!subject) {
+    return showAlert('composeAlert', 'error', 'Subject is required.');
+  }
+  
+  let message = isHtmlMode ? document.getElementById('msgHtml').innerHTML : document.getElementById('msgPlain').value;
+  if (!message.trim()) {
+    return showAlert('composeAlert', 'error', 'Message body is required.');
+  }
 
   const btn = document.getElementById('sendBtn');
-  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Sending…'; clearAlert('composeAlert');
+  btn.disabled = true; 
+  btn.innerHTML = '<div class="spinner"></div> Sending…';
+  clearAlert('composeAlert');
+  
   try {
-    const fd = new FormData();
-    fd.append('smtpConfig', JSON.stringify(smtp));
-    fd.append('to', recipients.join(','));
-    fd.append('subject', subject);
-    fd.append('message', message);
-    if (document.getElementById('trackToggle').checked) fd.append('enableTracking', 'true');
+    const formData = new FormData();
+    formData.append('smtpConfig', JSON.stringify(smtp));
+    formData.append('to', recipients.join(','));
+    formData.append('subject', subject);
+    formData.append('message', message);
+    
+    if (document.getElementById('trackToggle').checked) {
+      formData.append('enableTracking', 'true');
+    }
+    
     if (document.getElementById('schedToggle').checked) {
       const t = document.getElementById('schedTime').value;
-      if (!t) { showAlert('composeAlert','error','Set a schedule time.'); btn.disabled=false; btn.innerHTML='<span>Send Email</span>'; return; }
-      fd.append('scheduleTime', new Date(t).toISOString());
+      if (!t) {
+        showAlert('composeAlert','error','Set a schedule time.');
+        btn.disabled=false; 
+        btn.innerHTML='<span>Send Email</span>';
+        return;
+      }
+      formData.append('scheduleTime', new Date(t).toISOString());
     }
-    for (const f of attachedFiles) fd.append('files', f, f.name);
-    const r = await fetch(`${API_BASE}/api/send`, { method: 'POST', body: fd });
-    const d = await safeJson(r);
-    if (d.success) { showAlert('composeAlert', 'success', `✅ ${d.message}`); addHistory(recipients.slice(), subject, d.results || []); }
-    else           { showAlert('composeAlert', 'error', '❌ ' + d.message); }
+    
+    for (const f of attachedFiles) {
+      formData.append('files', f, f.name);
+    }
+    
+    const response = await fetch(`/api/send`, { 
+      method: 'POST', 
+      body: formData 
+    });
+    
+    const responseText = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch(e) {
+      console.error('Failed to parse response:', responseText);
+      throw new Error(`Server returned invalid JSON. Response: ${responseText.substring(0, 200)}`);
+    }
+    
+    if (data.success) { 
+      showAlert('composeAlert', 'success', `✅ ${data.message}`); 
+      addHistory(recipients.slice(), subject, data.results || []);
+      
+      // Clear form after successful send
+      if (!document.getElementById('schedToggle').checked) {
+        clearForm();
+      }
+    } else { 
+      showAlert('composeAlert', 'error', '❌ ' + data.message); 
+    }
   } catch (e) {
+    console.error('Send email error:', e);
     showAlert('composeAlert', 'error', 'Network error: ' + e.message);
+    showDebugInfo(`Send email error:\n${e.stack || e.message}\n\nCheck network connection and API endpoint.`);
   } finally {
-    btn.disabled = false; btn.innerHTML = '<span>Send Email</span>';
+    btn.disabled = false; 
+    btn.innerHTML = '<span>Send Email</span>';
   }
 }
 
 function addHistory(tos, subject, results) {
   const ts = new Date().toLocaleTimeString();
-  for (const r of results) history.unshift({ to: r.to, subject, ok: r.success, error: r.error, ts });
+  for (const result of results) {
+    history.unshift({ 
+      to: result.to, 
+      subject, 
+      ok: result.success, 
+      error: result.error, 
+      ts 
+    });
+  }
   renderHistory();
 }
+
 function renderHistory() {
   const empty = document.getElementById('histEmpty');
   const table = document.getElementById('histTable');
   const body  = document.getElementById('histBody');
   const count = document.getElementById('histCount');
-  if (!history.length) { empty.style.display=''; table.style.display='none'; count.textContent=''; return; }
-  empty.style.display = 'none'; table.style.display = ''; count.textContent = `— ${history.length} record(s)`;
-  body.innerHTML = history.map(h => `<tr><td style="font-family:var(--mono)">${h.to}</td><td>${h.subject}</td><td><span class="badge ${h.ok?'ok':'err'}">${h.ok?'sent':'failed'}</span>${h.error?`<small style="color:var(--red);margin-left:6px">${h.error}</small>`:''}</td><td style="color:var(--muted)">${h.ts}</td></tr>`).join('');
+  
+  if (!history.length) { 
+    empty.style.display=''; 
+    table.style.display='none'; 
+    count.textContent=''; 
+    return; 
+  }
+  
+  empty.style.display = 'none'; 
+  table.style.display = ''; 
+  count.textContent = `— ${history.length} record(s)`;
+  
+  body.innerHTML = history.map(h => `
+    <tr>
+      <td style="font-family:var(--mono)">${escapeHtml(h.to)}</td>
+      <td>${escapeHtml(h.subject)}</td>
+      <td><span class="badge ${h.ok?'ok':'err'}">${h.ok?'sent':'failed'}</span>${h.error?`<small style="color:var(--red);margin-left:6px">${escapeHtml(h.error)}</small>`:''}</td>
+      <td style="color:var(--muted)">${h.ts}</td>
+    </tr>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
 }
 
 function clearForm() {
-  recipients.length = 0; renderPills();
-  attachedFiles.length = 0; renderChips();
+  recipients.length = 0; 
+  renderPills();
+  attachedFiles = []; 
+  renderChips();
   document.getElementById('subject').value = '';
   document.getElementById('msgPlain').value = '';
   document.getElementById('msgHtml').innerHTML = '';
   document.getElementById('ccEmail').value = '';
+  document.getElementById('schedToggle').checked = false;
+  document.getElementById('scheduleField').style.display = 'none';
+  document.getElementById('trackToggle').checked = false;
   clearAlert('composeAlert');
 }
+
 function showAlert(id, type, msg) {
   const el = document.getElementById(id);
   el.className = `alert ${type} show`;
-  el.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ'}</span><span>${msg}</span>`;
+  el.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ'}</span><span>${escapeHtml(msg)}</span>`;
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    if (el.classList.contains('show')) {
+      el.classList.remove('show');
+      setTimeout(() => {
+        if (el.innerHTML === '') el.className = 'alert';
+      }, 300);
+    }
+  }, 5000);
 }
-function clearAlert(id) { const el = document.getElementById(id); el.className = 'alert'; el.innerHTML = ''; }
+
+function clearAlert(id) { 
+  const el = document.getElementById(id); 
+  el.className = 'alert'; 
+  el.innerHTML = ''; 
+}
+
+// Initialize
+checkHealth();
+setInterval(checkHealth, 30000);
 </script>
 </body>
 </html>
