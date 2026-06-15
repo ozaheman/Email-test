@@ -446,7 +446,8 @@ async function parseBody(req) {
 }
 
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────────────
-module.exports = async function handler(req, res) {
+//module.exports = async function handler(req, res) {
+async function handler(req, res) {
   // Handle OPTIONS for CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS);
@@ -595,3 +596,6 @@ ${messageBody.replace(/\n/g, '<br/>')}
     timestamp: new Date().toISOString(),
   });
 };
+// Support both CommonJS and ES modules
+export default handler;
+module.exports = handler;
